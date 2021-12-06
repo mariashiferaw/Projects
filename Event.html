@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<title>Volunteer Event</title>
+	<script src="https://ajax.googleapis.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
+	<script>
+		$(document).ready(function() {
+			var eventDate = new Date(2022, 01, 14, 19, 00, 00, 0);
+			var x = setInterval(function() {
+				var deadline = new Date(eventDate).getTime();          //the day for the countdown
+				var now = new Date().getTime();						   // today
+				var t = deadline - now;								   // the difference between today and the day of the event
+				var days = Math.floor(t / (1000 * 60 * 60 * 24));	   // calculates the days until the event
+				var hours = Math.floor((t%(1000 * 60 * 60 * 24))/(1000 * 60 * 60));			// calculates the hours until the event
+				var minutes = Math.floor((t % (1000 * 60 * 60)) / (1000 * 60));				// calculates the minutes until the event
+				var seconds = Math.floor((t % (1000 * 60)) / 1000);							// calculates the seconds until the event
+				$("#message").html("Countdown to the Big Event! <br />" + days + "days " + hours + "hours " + minutes + "minutes " + seconds + "seconds");
+				if(t<0)	{
+					clearInterval(x);
+					$("#link").remove();        //removes the link to the volunteer list
+					$("#message").remove();		//removes the countdown text
+					$("#msg").html("Woohoo! The bid day has arrived.");
+				}
+			});			
+		});
+	</script>
+	<style>
+		html {
+			background: #228B22;
+		}
+		body {
+			background: #FFFACD;
+			width: 60%;
+			margin-left: 300px;
+			border: 1px solid;
+			height: 822px;
+			margin-top: 0px;
+			margin-bottom: 0px;
+		}
+		h1 {
+			text-align: center;
+			color: blue;
+			display: shadow;
+			font-size: 50px;
+			text-shadow: 1px 1px #000000;
+			text-decoration: underline;
+		}
+		h2 {
+			text-align: center;
+			font-style: italic;
+			font-size: 30px;
+			color: red;
+			text-shadow: 1px 1px #000000;
+		}
+		p{
+			text-align: center;
+			margin-top: 20px;
+			font-size: 20px;
+		}
+		#message {
+			text-align: center;
+			font-size: 30px;
+			font-weight: bold;
+		}
+		#msg {
+			text-align: center;
+			font-size: 30px;
+		}
+		#link {
+			text-align: center;
+			font-size: 20px;
+		}
+	</style>
+</head>
+<body>
+	<h1>Maria's Extremely Worthy Cause</h1>
+	<p>Thank you for visitng our website to learn more about Maria's Extremely Worthy Cause. This is where we would
+	   write something compelling to make you want to support our cause. Take a minute to imagine something of great 
+	   importance to you. Now assume that is the foundation of Maria's Extremely Worthy Cause!</p>
+	
+	<p>We will be holding our annual fundrasier for Maria's Extremely Worthy Cause on </p>
+	<h2>February 14, 2022 at 7:00pm</h2>
+	<p>We need your help to make the event a success! Please click on the link below to volunteer for Maria's
+	   Extremely Worthy Cause - you'll be glad you did!</p>
+	<p id="message"></p>
+	<p id="link"><a href="Volunteer_Registration.php">Click here to register to volunteer!</a></p>
+	<p id="msg"></p>
+</body>
+</html>
