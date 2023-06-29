@@ -1,0 +1,1047 @@
+---
+title: "gestational_diabetes"
+output: word_document
+date: "2023-05-23"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+#Library
+```{r}
+library(ggplot2)
+library(dplyr)
+library(gridExtra)
+library(naniar)
+library(visdat)
+library(corrplot)
+library(caret)
+library(ROSE)
+```
+
+
+# a) Data
+```{r}
+data <- read.csv(url("https://raw.githubusercontent.com/Marchosh/gestational_diabetes/master/patients.csv?token=GHSAT0AAAAAACC7K4VFNJCC5HTZ23CRGRBAZDMELKA"))
+head(data)
+```
+
+There are a lot of missing values and other values that seem like they are outliers. They are either way to high or way to low
+
+# B) Summary statistics
+```{r}
+summary(data)
+
+```
+Pregnancies:
+The range of the number of pregnancies is from 0 to 17, with a median of 3 and a mean of approximately 3.845.
+The majority of individuals (75%) had 6 or fewer pregnancies (as indicated by the third quartile).
+
+Glucose:
+The minimum glucose level observed is 0, which seems unusual and may indicate missing or invalid data.
+The range of glucose levels is from 0 to 199, with a median of 117 and a mean of approximately 120.9.
+The majority of glucose levels (75%) fall below 140.2 (as indicated by the third quartile).
+
+BloodPressure:
+The range of diastolic blood pressure values is from 0 to 122, with a median of 72 and a mean of approximately 69.11.
+The majority of blood pressure readings (75%) are below 80 (as indicated by the third quartile).
+
+SkinThickness:
+The range of triceps skinfold thickness values is from 0 to 99, with a median of 23 and a mean of approximately 20.54.
+The majority of skinfold thickness measurements (75%) are below 32 (as indicated by the third quartile).
+
+Insulin:
+The range of serum insulin levels is from 0 to 846, with a median of 30.5 and a mean of approximately 79.8.
+The majority of insulin levels (75%) are below 127.2 (as indicated by the third quartile).
+
+BMI:
+The range of body mass index (BMI) values is from 0 to 67.1, with a median of 32 and a mean of approximately 31.99.
+The majority of individuals (75%) have a BMI below 36.6 (as indicated by the third quartile).
+
+Pedigree:
+The range of diabetes pedigree function values is from 0.0780 to 2.4200, with a median of 0.3725 and a mean of approximately 0.4719.
+The majority of pedigree function values (75%) fall below 0.6262 (as indicated by the third quartile).
+
+Age:
+The range of ages in the dataset is from 21 to 81, with a median of 29 and a mean of approximately 33.24.
+The majority of individuals (75%) are below 41 years old (as indicated by the third quartile).
+
+Diagnosis:
+The diagnosis variable is binary, with 0 representing a negative diagnosis (no diabetes) and 1 representing a positive diagnosis (diabetes).
+Approximately 34.9% of the cases in the dataset are diagnosed with diabetes, as indicated by the mean.
+
+# C) EDA
+```{r}
+# Bar plot of Diagnosis
+ggplot(data, aes(x = factor(Diagnosis))) +
+  geom_bar(fill = "lightblue") +
+  labs(x = "Diagnosis", y = "Count") +
+  ggtitle("Distribution of Diagnosis")
+
+```
+
+there is imbalance of the Diagnosis data which we might need to balanced it since it is the target vraible
+
+```{r}
+library(psych)
+
+pairs.panels(data)
+```
+
+
+
+It's quite hard to see the relationship of each variable to Diagnosis, there is many overlapping area, and also some of the outliar are shown. The data taht shows postive relationship with each other is SkinThckiness vs BMI and Glucose vs Insulin. but their correlation get lower becasue of the amount of 0 in Skinthcikness and and Insulin. The other data shows more randomly distributted and no pattern can be seen from the scatter plot. there is no indication of multicoliniarity fro mthe variable. 
+
+the distribution of the data shows that not everything is normally distributted especially Insulin and skinThickness, which has really high number of 0 observation present. For the variable Age and Pregnancies shows skewness to right. the pregnancies has many number of 0 but it still seems to be normal considering the number and it looks quite good for the distrution eventhough it's skewd to the right.
+For the Age, it skewd becasue there are more younger person get observed comapred to older people.
+
+More detailed on the histogram:
+Pregnancies:
+
+Glucose:
+The histogram of Glucose shows that most people have a glucose level between 100 and 125. The highest level being 117 and the amount of people with that amount of Glucose level are around the 110.
+there is zero value which missing value mostlikely
+
+Blood Preasue:
+there si possibility of missing value in the blood preaseure since 0 is present
+
+Skin thickness:
+missing value 0
+
+Insulin:
+hug spike in 0 must be investivigated
+
+BMI:
+0 porbabluy missing value
+
+Pedigree:
+all equal, need to be investivigated
+
+AGE:
+seem some outlier with women over 60
+
+Diagnosis:
+Binary
+
+```{r}
+# Exclude non-numeric variables and the "Diagnosis" column
+vars <- names(data)[!sapply(data, is.factor)]
+vars <- vars[vars != "Diagnosis"]
+
+# Create a list to store the plots
+plots <- list()
+
+# Loop through the variables and create box plots
+for (var in vars) {
+  plot <- ggplot(data, aes(x = as.factor(Diagnosis), y = .data[[var]], fill = as.factor(Diagnosis))) +
+    geom_boxplot() +
+    labs(x = "Diagnosis", y = var, fill = "Diagnosis") +
+    ggtitle(paste("Box Plot of", var, "by Diagnosis")) +
+    theme(legend.position = "bottom") +
+    scale_fill_brewer(palette = "Set1")
+  
+  plots[[var]] <- plot
+}
+
+# Display the plots
+for (plot in plots) {
+  print(plot)
+}
+
+```
+
+The box plot shows how the distribution of the data of each vraible categorize by the diagnosis. Most of the indiependent varaible doesnt shows clutered group that divide the diagnosis clearly. the only varaible thats shows good pattern is glucose. it shows that people who has higher glucose is more likely Diagnos as 1 or positive Gastional Diabetes.
+The box plot also shows that there is outlair present.
+
+
+
+```{r}
+# Create density plots for each variable
+numeric_vars <- names(data)[sapply(data, is.numeric)]
+for (var in numeric_vars) {
+  p <- ggplot(data, aes(x = .data[[var]], fill = as.factor(Diagnosis))) +
+    geom_density(alpha = 0.5) +
+    labs(x = var, y = "Density", title = paste("Density Plot of", var, "by Diagnosis")) +
+    theme_minimal()
+  print(p)
+}
+
+```
+This plot shows density of the data categorized by diagnosis. It showed how many data clustered in the are of each value in the independt varaible. In the pregnancies we can see that there are more people diagnosed (0) Negative when they have lower number of pregnancies, and continue to decreaseing sharply when the number of pregnancies get higher. for when it diagnosed as 1, the number is still high in the begenning but not as high as (0). the higher the number of pregnancies the number of people diagnosed continue the same, but looking at the over al population, it shows that the higher number of preganancies the higher chances that people diagnosed as postive (1)
+
+In the Glucose density plot we can see graph similar to gaussian distribution that shows how the data clustered. it shows quite obvious pattern of how the data divided based on the Diagnosis. But there still quite large are of overallaping which is lowering the accuracy.
+
+The BloodPreassure has very similar diagnosed between 2 group. it's very hard to decide the diagnosis just from this varabiale alone, since most of the are is overalapping.
+
+Skin thcikness also the same most area is overalappign and it has very high number of 0
+
+The insulin density plot shows that, people has higher Insulin has more chance of poeple diangosed as postive (1)
+
+The BMI plot shows like two mountains that almost overallping with each other. the higher BMi shows more chance of the preson diagnosed as positive(1). But the BMI graph also has quite big overlapping area which mostly in value 30 that makes it harder to dicide the diagnosis in that area.
+
+Pedigree also shows similar plto to Insulin which shows more poeople diagnosed as postive the higher the Pedigree, But in the plot we can see some exception in the value around 1.75 where there more poeple diagnosed as negative (0)
+
+For the variable AGE it showed that the older the people, the higher the chance to get diagnose as postive (1)
+
+
+## Corelation Pregnancy Diagnostic
+```{r}
+pregnancy_counts <-  table(data$Diagnosis, data$Pregnancies)
+
+# Create a side-by-side bar plot
+barplot(pregnancy_counts, 
+        main = "Number of Pregnancies vs Diagnostic Outcome",
+        xlab = "Diagnostic Outcome",
+        ylab = "Number of Pregnancies",
+        col = c("blue", "red"),
+        legend = rownames(pregnancy_counts),
+        beside = TRUE)
+```
+
+This plot is comparing the diagnostic in each number of preganncies. it shows that the more number of pregnancies shows higher chance of the person diagnose as GDM. The data also shows that the number of observation is more bias toward person that has lower number of pregnancies.
+
+
+# D) missing value
+
+```{r}
+# Calculate the number of missing values for each variable
+missing_counts <- data %>%
+  summarise_all(~sum(is.na(.) | . == 0))
+
+# Convert missing_counts to long format for plotting
+missing_counts_long <- tidyr::pivot_longer(missing_counts, everything(), names_to = "Variable", values_to = "Missing_Count")
+
+# Create the bar plot
+p <- ggplot(missing_counts_long, aes(x = Variable, y = Missing_Count, fill = Variable)) +
+  geom_bar(stat = "identity") +
+  labs(x = "Variable", y = "Missing Count", title = "Number of Missing Values by Variable") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+print(p)
+
+```
+It shows that Diagnosis has highes since it contatin 0 but we know that it's not missing value but actual value.
+The number of 0 in Preganncies considerably high but it still make sense and still follow the normal distribution
+For the varaible Insulin and skinthckiness and preganncies showing execptionaly high number of 0 which might not be a missing value, but the distribution become really badly skewed. so we came with two approach: 
+1. CLEANDATA: Without replacing INSULIN and Skinthckness
+2. CLEANDATA2: replace all 0 with mdeian
+
+```{r}
+# Create a new dataframe called missdata
+missdata <- data
+
+# Replace 0 with NA for missing values in missdata
+missdata[missdata == 0] <- NA
+
+# Plot the modified missing values heatmap
+vis_miss(missdata)
+```
+
+Diagnosis 0 is category so is not mising value,
+THe insulin 0 is need to be investivigate wheter is it true 0 or missing value beacsue 49% of them is 0
+Same goes fro skin thcikness, wheter is it true 0 or missing value becaseu contain 30%
+For the preganancies 0 it could indicate they never pregnant and not missing value
+But the other (Glucose, BloodPreassure, and BMi) variable 0 is mostlikely missing value.
+
+We can see straight long line continous from one oclumn to other it showed that,
+when 1 of the column missing the other column are also likely to be missing
+
+## Replace missing value (0) in (Glucose, BloodPreassure, and BMi)
+```{r}
+cleandata <- data
+
+# Calculate the median values
+median_glucose <- median(cleandata$Glucose, na.rm = TRUE)
+median_bp <- median(cleandata$BloodPressure, na.rm = TRUE)
+median_bmi <- median(cleandata$BMI, na.rm = TRUE)
+
+# Replace 0 with median in Glucose column
+cleandata$Glucose <- ifelse(cleandata$Glucose == 0, median_glucose, cleandata$Glucose)
+
+# Replace 0 with median in BloodPressure column
+cleandata$BloodPressure <- ifelse(cleandata$BloodPressure == 0, median_bp, cleandata$BloodPressure)
+
+# Replace 0 with median in BMI column
+cleandata$BMI <- ifelse(cleandata$BMI == 0, median_bmi, cleandata$BMI)
+```
+
+### Replace ALL 0 to median
+except pregnancies
+```{r}
+cleandata2 <- cleandata
+
+median_BloodPressure <- median(cleandata2$BloodPressure, na.rm = TRUE)
+median_Insulin <- median(cleandata2$Insulin, na.rm = TRUE)
+mean_SkinThickness <- mean(cleandata2$SkinThickness, na.rm = TRUE)
+
+# Replace 0 with median in Glucose column
+cleandata2$BloodPressure <- ifelse(cleandata2$BloodPressure == 0, median_BloodPressure, cleandata2$BloodPressure)
+
+# Replace 0 with median in BloodPressure column
+cleandata2$Insulin <- ifelse(cleandata2$Insulin == 0, median_Insulin, cleandata2$Insulin)
+
+# Replace 0 with median in BMI column
+cleandata2$SkinThickness <- ifelse(cleandata2$SkinThickness == 0, mean_SkinThickness, cleandata2$SkinThickness)
+
+```
+
+
+
+## After Cleaning
+```{r}
+# Calculate the number of missing values for each variable
+missing_counts <- cleandata %>%
+  summarise_all(~sum(is.na(.) | . == 0))
+
+# Convert missing_counts to long format for plotting
+missing_counts_long <- tidyr::pivot_longer(missing_counts, everything(), names_to = "Variable", values_to = "Missing_Count")
+
+# Create the bar plot
+p <- ggplot(missing_counts_long, aes(x = Variable, y = Missing_Count, fill = Variable)) +
+  geom_bar(stat = "identity") +
+  labs(x = "Variable", y = "Missing Count", title = "Number of Missing Values by Variable") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+print(p)
+
+```
+
+# E) Outlier
+
+
+```{r}
+# Assign independent variables
+independent_vars <- names(cleandata)[names(cleandata) != "Diagnosis"]
+
+# Calculate the IQR for each independent variable
+iqr_values <- apply(cleandata[, independent_vars], 2, IQR)
+
+# Find the lower and upper bounds for outliers
+lower_bounds <- apply(cleandata[, independent_vars], 2, function(x) quantile(x, 0.25) - 1.5 * IQR(x))
+upper_bounds <- apply(cleandata[, independent_vars], 2, function(x) quantile(x, 0.75) + 1.5 * IQR(x))
+
+# Identify the outliers for each variable
+outliers <- lapply(seq_along(independent_vars), function(i) {
+  outliers <- which(cleandata[, independent_vars[i]] < lower_bounds[i] | cleandata[, independent_vars[i]] > upper_bounds[i])
+  if (length(outliers) > 0) {
+    data.frame(Variable = independent_vars[i], Outlier_Value = cleandata[outliers, independent_vars[i]])
+  } else {
+    NULL
+  }
+})
+
+# Combine the outliers into a single data frame
+outliers_df <- do.call(rbind, outliers)
+
+head(outliers_df)
+```
+
+
+## Replace Outlier
+Winsorization: Winsorization replaces extreme values with values closer to the rest of the data. Instead of removing the outliers completely, you can replace them with a trimmed or truncated value at a certain percentile. This approach retains the overall distribution shape while reducing the impact of outliers
+
+We used winsorization as our method of replacing outliers. First we identified the desired percentile values which are the 5th and 95th percentiles. These percentiles define the range within which the values will be capped. The next step was to determine the cutoff values. The 5th percentile represents the lower cutoff and the 95th percentile represents the upper cutoff. Any value below the lower cutoff will be replaced with the value of the lower cutoff and any value above the upper cutoff will be replaced with the upper cutoff. 
+
+
+```{r}
+# Apply Winsorization to replace outliers in selected variables
+selected_vars <- c("Pregnancies", "BloodPressure", "BMI", "Insulin", "SkinThickness", "Pedigree")
+
+winsorize <- function(x, trim = 0.05) {
+  q <- quantile(x, probs = c(trim, 1 - trim), na.rm = TRUE)
+  x[x < q[1]] <- q[1]
+  x[x > q[2]] <- q[2]
+  x
+}
+
+for (var in selected_vars) {
+  cleandata[, var] <- winsorize(cleandata[, var])
+}
+```
+
+```{r}
+# replace outlair cleandata2 (all 0 replaced)
+selected_vars <- c("Pregnancies", "BloodPressure", "BMI", "Insulin", "SkinThickness", "Pedigree")
+
+winsorize <- function(x, trim = 0.05) {
+  q <- quantile(x, probs = c(trim, 1 - trim), na.rm = TRUE)
+  x[x < q[1]] <- q[1]
+  x[x > q[2]] <- q[2]
+  x
+}
+
+for (var in selected_vars) {
+  cleandata2[, var] <- winsorize(cleandata2[, var])
+}
+
+```
+
+
+# G) Select Varaible from correlation table
+
+```{r}
+# Calculate the correlation matrix
+cor_matrix <- cor(cleandata)
+
+# Create a correlogram using a heatmap
+
+corrplot(cor_matrix, method = "color", type = "upper", tl.cex = 0.7, addCoef.col = "black")
+
+
+```
+
+Glucose has the strongest correlation with the Diagnosis
+The varaible that we select is the top 4 that has highest corelation which is Glucose, BMI, Age, and Pregnancies
+
+# H) Standarization
+Standardizing features to a Gaussian distribution can be a good idea for several reasons:
+
+Equalize the scales: Standardizing the features ensures that they are on a comparable scale. This is important when working with algorithms that are sensitive to the scale of the variables. Standardization prevents features with larger scales from dominating the algorithm and helps to ensure fair comparisons between different features.
+
+Facilitate model convergence: Many machine learning algorithms, such as linear regression and neural networks, rely on optimization techniques that assume the input features are normally distributed or have a similar scale. Standardizing the features can improve the convergence of these algorithms and help them find the optimal solution more efficiently.
+
+Interpretability and comparability: When features are standardized, their values are transformed to a common scale, making them more interpretable and comparable. The standardized values represent the number of standard deviations the original values are from the mean. This allows for easier interpretation and understanding of the relative importance and impact of each feature on the model.
+
+Reduce the influence of outliers: Standardization can help mitigate the impact of outliers on the model. By transforming the features to a Gaussian distribution, extreme values (outliers) are scaled to a smaller range and have less influence on the model's behavior. This can lead to more robust and stable model performance.
+
+Improve feature importance estimation: Standardization helps to provide a fair estimation of feature importance or feature contribution in models that use regularization techniques or rely on feature weights. It ensures that the importance or weights are not biased by the original scale of the features.
+
+Overall, standardizing features to a Gaussian distribution is a common practice in data preprocessing to improve the performance, stability, and interpretability of machine learning models. It helps to address issues related to feature scales, convergence, interpretability, outliers, and fair comparison between features.
+
+
+```{r}
+standdata <- cleandata
+
+# Select the independent variables
+independent_vars <- names(cleandata)[names(cleandata) != "Diagnosis"]
+
+# Standardize the independent variables using Gaussian distribution
+stand_data <- as.data.frame(scale(cleandata[, independent_vars]))
+
+standdata[, independent_vars] <- stand_data
+head(standdata, 10)
+```
+
+```{r}
+# standarize data for cleandata2 (all 0 replaced)
+standdata2 <- cleandata2
+
+# Select the independent variables
+independent_vars <- names(cleandata2)[names(cleandata2) != "Diagnosis"]
+
+# Standardize the independent variables using Gaussian distribution
+stand_data2 <- as.data.frame(scale(cleandata2[, independent_vars]))
+
+standdata2[, independent_vars] <- stand_data2
+```
+
+The data are standarized. and if we see the pairplot some of data are still not lookslike normaly distributted espcially Insulin and SKinthcikness which has exceptonally high number of 0. removing it is not option becasue the number of 0 is to high and the nubmer of data we have is also very low. We also try transforming the data with log transformation and boxcox transformation but it wont shows a nromal distribtuion in that vraible. so we dicided to use it as it is.
+
+
+```{r}
+pairs.panels(standdata2)
+```
+
+It is good to standardize the feature so we can compare the variables, we can avoid bias, and we can assume that we have a normal distibution.
+
+# Normalize Inbalance Data (Diagnosis)
+```{r}
+# Convert "Diagnosis" column to factor
+standdata$Diagnosis <- as.factor(standdata$Diagnosis)
+
+# Check class distribution
+table(standdata$Diagnosis)
+
+# Get the indices of the minority and majority class
+minority_indices <- which(standdata$Diagnosis == 1)
+majority_indices <- which(standdata$Diagnosis == 0)
+
+# Oversample the minority class
+oversampled_minority_indices <- sample(minority_indices, 500, replace = TRUE)
+
+# Undersample the majority class
+undersampled_majority_indices <- sample(majority_indices, 500)
+
+# Combine the minority and balanced majority indices
+balanced_indices <- c(oversampled_minority_indices, undersampled_majority_indices)
+
+# Create the balanced dataset
+balanced_data <- standdata[balanced_indices, ]
+
+# Check the class distribution of the balanced dataset
+table(balanced_data$Diagnosis)
+```
+
+Becasue there is imblance in the diagnosis, Normalizing the data is a good option to make the prediction not bias toward one of the varaible. the data becoem balnced to 500 (0) and 500 (1).
+
+# I) Model LRM1 (logistic regression with slected varaibles)
+
+```{r}
+# Set the seed for reproducibility
+set.seed(123)
+
+# Split the data into training and testing sets
+trainIndex <- createDataPartition(balanced_data$Diagnosis, p = 0.8, list = FALSE)
+trainData <- balanced_data[trainIndex, ]
+testData <- balanced_data[-trainIndex, ]
+
+# Create the formula for logistic regression
+formula <- as.formula("Diagnosis ~ Pregnancies + Glucose + BMI  + Age")
+
+# Fit the logistic regression model
+LRM1 <- glm(formula, data = trainData, family = "binomial")
+
+summary(LRM1)
+```
+
+We select variable by removing the Insulin and skinthcikness since it has exceptionaly high number of 0
+
+# J)  Model Report
+```{r}
+# Select the desired columns including the "Diagnosis" column
+selected_data <- trainData[, c("Pregnancies", "Glucose", "BMI", "Age", "Diagnosis")]
+
+# Predict using the model
+predictions <- predict(LRM1, newdata = selected_data, type = "response")
+
+# Convert predicted probabilities to class labels (0 or 1)
+predicted_classes <- ifelse(predictions > 0.5, 1, 0)
+
+# Convert predicted_classes and standdata$Diagnosis to factors with the same levels
+predicted_classes <- factor(predicted_classes, levels = c(0, 1))
+selected_data$Diagnosis <- factor(selected_data$Diagnosis, levels = c(0, 1))
+
+# Create a confusion matrix
+confusion_matrix <- confusionMatrix(predicted_classes, trainData$Diagnosis)
+
+# Calculate accuracy
+accuracy <- confusion_matrix$overall['Accuracy']
+
+# Print the accuracy
+print(accuracy)
+print(confusion_matrix)
+
+```
+The accuracy is 73.25% which mean from the data trained it only able to correctly predict 75.3% of it
+
+# K) classification report (precision, recall, F1 score, and support)
+
+```{r}
+# Extract values from the confusion matrix
+TP11 <- confusion_matrix$table[2, 2]
+FN10 <- confusion_matrix$table[1, 2]
+FP01 <- confusion_matrix$table[2, 1]
+
+
+# Calculate precision
+precision <- TP11 / (TP11 + FP01)
+
+# Calculate recall (sensitivity)
+recall <- TP11 / (TP11 + FN10)
+
+# Calculate F1-score
+f1_score <- 2 * (precision * recall) / (precision + recall)
+
+# Calculate support
+support <- TP11 + FN10
+
+# Print the results
+cat("Precision:", precision, "\n")
+cat("Recall:", recall, "\n")
+cat("F1 Score:", f1_score, "\n")
+cat("Support:", support, "\n")
+```
+
+
+the precision value of 0.74 means that out of all the instances predicted as positive, around 76% were correctly classified as positive.
+The recall value of 0.7 indicates that the model correctly identified around 73% of the actual positive instances.
+The F1 score value of 0.72 suggests a good balance between precision and recall for the model's performance.
+Support: Support refers to the number of actual instances belonging to the positive class in the dataset. In this case, the support value of 400  indicates that there are 400  instances classified as positive in the dataset.
+
+
+# L) accuracy score of your model
+
+```{r}
+# Select the desired columns including the "Diagnosis" column
+selected_data <- testData[, c("Pregnancies", "Glucose", "BloodPressure", "BMI", "Pedigree", "Age", "Diagnosis")]
+
+# Predict using the model
+predictions <- predict(LRM1, newdata = selected_data, type = "response")
+
+# Convert predicted probabilities to class labels (0 or 1)
+predicted_classes <- ifelse(predictions > 0.5, 1, 0)
+
+actual_values <- testData$Diagnosis
+
+# Calculate the accuracy
+accuracy <- sum(predicted_classes == actual_values) / length(actual_values)
+
+# Print the accuracy
+print(accuracy)
+```
+Accuracy: Classification models frequently use accuracy as an evaluation criterion. It addresses the extent of right expectations out of the absolute number of forecasts. The ratio of the number of accurate predictions to the total number of predictions is used to calculate it.
+The LRM1 model's accuracy score in this instance is 0.775, indicating that approximately 77.5% of its predictions were correct.which actually suprisngly higher than trained data prediction. it mean that the model is not overfitted and able to predict new data well
+
+# M) Model LRM2 - Full model
+```{r}
+# Set the seed for reproducibility
+set.seed(123)
+
+# Split the data into training and testing sets
+trainIndex <- createDataPartition(balanced_data$Diagnosis, p = 0.8, list = FALSE)
+trainData2 <- balanced_data[trainIndex, ]
+testData2 <- balanced_data[-trainIndex, ]
+
+# Create the formula for logistic regression
+formula <- as.formula("Diagnosis ~ .")
+
+# Fit the logistic regression model
+LRM2 <- glm(formula, data = trainData2, family = "binomial")
+
+summary(LRM2)
+
+```
+
+
+
+```{r}
+# Predict using the model
+predictions <- predict(LRM2, newdata = trainData2, type = "response")
+
+# Convert predicted probabilities to class labels (0 or 1)
+predicted_classes <- ifelse(predictions > 0.5, 1, 0)
+
+# Convert predicted_classes and standdata$Diagnosis to factors with the same levels
+predicted_classes <- factor(predicted_classes, levels = c(0, 1))
+trainData$Diagnosis <- factor(trainData$Diagnosis, levels = c(0, 1))
+
+# Create a confusion matrix
+confusion_matrix2 <- confusionMatrix(predicted_classes, trainData$Diagnosis)
+
+# Calculate accuracy
+accuracy <- confusion_matrix2$overall['Accuracy']
+
+# Print the accuracy
+print(accuracy)
+print(confusion_matrix2)
+```
+
+```{r}
+# Extract values from the confusion matrix
+TP11 <- confusion_matrix2$table[2, 2]
+FN10 <- confusion_matrix2$table[1, 2]
+FP01 <- confusion_matrix2$table[2, 1]
+
+
+# Calculate precision
+precision <- TP11 / (TP11 + FP01)
+
+# Calculate recall (sensitivity)
+recall <- TP11 / (TP11 + FN10)
+
+# Calculate F1-score
+f1_score <- 2 * (precision * recall) / (precision + recall)
+
+# Calculate support
+support <- TP11 + FN10
+
+# Print the results
+cat("Precision:", precision, "\n")
+cat("Recall:", recall, "\n")
+cat("F1 Score:", f1_score, "\n")
+cat("Support:", support, "\n")
+```
+```{r}
+# Predict using the model
+predictions <- predict(LRM2, newdata = testData2, type = "response")
+
+# Convert predicted probabilities to class labels (0 or 1)
+predicted_classes <- ifelse(predictions > 0.5, 1, 0)
+
+actual_values <- testData2$Diagnosis
+
+# Calculate the accuracy
+accuracy <- sum(predicted_classes == actual_values) / length(actual_values)
+
+# Print the accuracy
+print(accuracy)
+```
+
+the precision value of 0.75 means that out of all the instances predicted as positive, around 77% were correctly classified as positive.
+
+The recall value of 0.7 indicates that the model correctly identified around 75% of the actual positive instances.
+
+The F1 score value of 0.724 suggests a good balance between precision and recall for the model's performance.
+
+Support: Support refers to the number of actual instances belonging to the positive class in the dataset. In this case, the support value of 400  indicates that there are 400  instances classified as positive in the dataset.
+
+Overall model LRM2 with all dataset shows a slightly better accruacy of 0.7363 or 73.63% which higher than previous model LRM1 73.25%. and the perfomance of the Recall, Precision is also higher which mean the LRM2 is slightly better than LRM1 in all aspects. The test data shows similar accuracy of 77.5%
+
+
+# LRM3 (with 0 all replaced)
+```{r}
+# Set the seed for reproducibility
+set.seed(123)
+
+# Split the data into training and testing sets
+trainIndex <- createDataPartition(standdata2$Diagnosis, p = 0.8, list = FALSE)
+trainData <- standdata2[trainIndex, ]
+testData <- standdata2[-trainIndex, ]
+
+# Create the formula for logistic regression
+formula <- as.formula("Diagnosis ~ .")
+
+# Fit the logistic regression model
+LRM3 <- glm(formula, data = trainData, family = "binomial")
+
+summary(LRM3)
+```
+```{r}
+# Predict using the model
+predictions <- predict(LRM3, newdata = trainData, type = "response")
+
+# Convert predicted probabilities to class labels (0 or 1)
+predicted_classes <- ifelse(predictions > 0.5, 1, 0)
+
+# Convert predicted_classes and standdata$Diagnosis to factors with the same levels
+predicted_classes <- factor(predicted_classes, levels = c(0, 1))
+trainData$Diagnosis <- factor(trainData$Diagnosis, levels = c(0, 1))
+
+# Create a confusion matrix
+confusion_matrix3 <- confusionMatrix(predicted_classes, trainData$Diagnosis)
+
+# Calculate accuracy
+accuracy <- confusion_matrix3$overall['Accuracy']
+
+# Print the accuracy
+print(accuracy)
+print(confusion_matrix3)
+
+```
+```{r}
+# LRM3
+# Extract values from the confusion matrix
+TP11 <- confusion_matrix3$table[2, 2]
+FN10 <- confusion_matrix3$table[1, 2]
+FP01 <- confusion_matrix3$table[2, 1]
+
+
+# Calculate precision
+precision <- TP11 / (TP11 + FP01)
+
+# Calculate recall (sensitivity)
+recall <- TP11 / (TP11 + FN10)
+
+# Calculate F1-score
+f1_score <- 2 * (precision * recall) / (precision + recall)
+
+# Calculate support
+support <- TP11 + FN10
+
+# Print the results
+cat("Precision:", precision, "\n")
+cat("Recall:", recall, "\n")
+cat("F1 Score:", f1_score, "\n")
+cat("Support:", support, "\n")
+```
+
+```{r}
+# Predict using the model
+predictions <- predict(LRM3, newdata = testData, type = "response")
+
+# Convert predicted probabilities to class labels (0 or 1)
+predicted_classes <- ifelse(predictions > 0.5, 1, 0)
+
+actual_values <- testData$Diagnosis
+
+# Calculate the accuracy
+accuracy <- sum(predicted_classes == actual_values) / length(actual_values)
+
+# Print the accuracy
+print(accuracy)
+```
+The model of LRM3 which the model are normalize to follow gaussian distribtuion and all the 0 are replaced shows higher accuracy than all previous model with 77.1% accuracy. But the model shows lower Recall value of 0.56 which very low compare to other model which has recall highe than 0.7. same with the precision it also lowerm but not as much as the precision. since the Precision and the recall is lower the F1 score also become lower. the testdata accruacy is 77.1% which slightly lower than trained data accuracy and compared to previous model it's also lightly lower.
+
+# N) Compare
+-Model LRM1
+train acc: 73.25%
+Precision: 0.7460317 
+Recall: 0.705 
+F1 Score: 0.7249357 
+Support: 400 
+test acc: 77.5%
+
+-Model LRM2
+train acc: 73.63%
+Precision: 0.752 
+Recall: 0.705 
+F1 Score: 0.7277419 
+Support: 400 
+test acc: 77.5%
+
+-Model LRM3
+train acc: 77.23%
+Precision: 0.7235294 
+Recall: 0.5694444 
+F1 Score: 0.6373057 
+Support: 216
+test acc: 77.12%
+
+The model LRM3 shows the highest trained data accuracy but the previous 2 model LRM1 and LRM2 has higher accuracy in the testing data with 77.5%. the diffrence of accuracy of the model is not that much so it's hardly to say which one is better. but if we see the F1 score shows that LRM2 is better. in medical field predicting correct is very imprtant. the lower the higher f1 score mean less mistake made during prediction. So, overall LRM2 with all feature use, but keep 0 for Insulin and Skinthcikness is the best perfomance.
+
+
+
+# O) Examine the coefficients - direction and significance of the relationship between the predictor variables and the outcome variable
+
+```{r}
+# View the coefficient estimates
+coef_summary <- summary(LRM2)$coefficients
+print(coef_summary)
+
+# Access the coefficient values
+coefficients <- coef_summary[, "Estimate"]
+
+# Access the p-values
+p_values <- coef_summary[, "Pr(>|z|)"]
+
+# Loop through the coefficients and interpret the results
+for (i in 1:length(coefficients)) {
+  coefficient <- coefficients[i]
+  p_value <- p_values[i]
+  
+  if (p_value < 0.05) {
+    significance <- "significant"
+  } else {
+    significance <- "not significant"
+  }
+  
+  if (coefficient > 0) {
+    direction <- "positive"
+  } else if (coefficient < 0) {
+    direction <- "negative"
+  } else {
+    direction <- "no"
+  }
+  
+  predictor <- names(coefficients)[i + 1]  # Skip the intercept term
+  
+  cat(paste("The coefficient for", predictor, "is", coefficient,
+            "indicating a", direction, "relationship, and is", significance, "\n"))
+}
+```
+
+# P) hypothesis tests that your model is significantly better.
+```{r}
+# Set the desired significance level
+significance_level <- 0.05
+
+# Calculate the number of hypothesis tests (in this case, 1)
+num_tests <- 1
+
+
+
+# Perform likelihood ratio test
+lr_test <- anova(LRM1, LRM2, test = "LRT")
+
+# Extract the test statistic, degrees of freedom, and p-value
+test_statistic <- lr_test$Deviance[2]
+degrees_of_freedom <- lr_test$Df[2]
+p_value <- 1 - pchisq(test_statistic, degrees_of_freedom)
+
+
+significance_level <- 0.05
+num_tests <- 4
+# Adjust the significance level using the Bonferroni correction
+adjusted_significance_level <- significance_level / num_tests
+
+# Print the results
+cat("Test Statistic:", test_statistic, "\n")
+cat("Degrees of Freedom:", degrees_of_freedom, "\n")
+cat("p-value:", p_value, "\n")
+cat("adjusted significance level:", adjusted_significance_level, "\n")
+
+# Compare the p-value with the adjusted significance level
+if (p_value < significance_level) {
+  print("Reject the null hypothesis - LRM2 is significantly better than LRM1")
+} else {
+  print("Fail to reject the null hypothesis - LRM2 is not significantly better than LRM1")
+}
+```
+Test Results: The value of the test statistic is 11.28436 . The likelihood ratio test, which compares the fit of Models 0 (the null model) and 1 (the alternative model), yields this value. Stronger evidence against the null hypothesis can be seen in a test statistic that is larger.
+
+Degree of Freedom: The test statistic has a 1 degree of freedom associated with it. This is the estimated difference between Model 0 and Model 1 in the number of parameters.
+
+p-value: The p-value, which was determined to be 0.02354735, is > 0.05 (adjusted significant level). So we fail to reject the null hypothesis. therefore the model LRM2 is not significantly better than LRM1 in term of train data accuracy.
+
+
+# q) Bonferroni correction
+```{r}
+significance_level <- 0.05
+num_tests <- 4
+# Adjust the significance level using the Bonferroni correction
+adjusted_significance_level <- significance_level / num_tests
+
+# Print the adjusted significance level and interpretation
+cat("Adjusted Significance Level:", adjusted_significance_level, "\n")
+
+# Compare the p-value with the adjusted significance level
+if (p_value < adjusted_significance_level) {
+  print("Reject the null hypothesis - LRM2 is significantly better than LRM1")
+} else {
+  print("Fail to reject the null hypothesis - LRM2 is not significantly better than LRM1")
+}
+
+
+```
+
+We fail to reject the null hypothesis even with the bonferroni correction. So it mean the model LRM2 is not significantly better than model LRM1
+
+# LRM4
+Our Goal is to be precise by reducing type 2 error. If the model has a high rate of false negatives, it means that women who are actually at risk for gestational diabetes may go undetected. This can result in delayed interventions, missed opportunities for early treatment or preventive measures, and potential complications for both the mother and the baby. Thats why we are trying to reducing type 2 error
+
+higher recall is the goal
+```{r}
+# Set the seed for reproducibility
+set.seed(123)
+
+# Split the data into training and testing sets
+trainIndex <- createDataPartition(balanced_data$Diagnosis, p = 0.8, list = FALSE)
+trainData <- balanced_data[trainIndex, ]
+testData <- balanced_data[-trainIndex, ]
+
+# Create the formula for logistic regression
+formula <- as.formula("Diagnosis ~ .")
+
+# Fit the logistic regression model
+LRM4 <- glm(formula, data = trainData, family = "binomial")
+
+summary(LRM4)
+
+```
+Reducing the Type 2 error by decreasing the threshold so more people will be diagnosed as postive. so there is less chance of people miss diagnosed as not postive to Gastional diabetes
+```{r}
+# Predict using the model
+predictions <- predict(LRM4, newdata = trainData, type = "response")
+
+# Convert predicted probabilities to class labels (0 or 1)
+predicted_classes <- ifelse(predictions > 0.4, 1, 0)
+
+# Convert predicted_classes and standdata$Diagnosis to factors with the same levels
+predicted_classes <- factor(predicted_classes, levels = c(0, 1))
+trainData$Diagnosis <- factor(trainData$Diagnosis, levels = c(0, 1))
+
+# Create a confusion matrix
+confusion_matrix4 <- confusionMatrix(predicted_classes, trainData$Diagnosis)
+
+# Calculate accuracy
+accuracy <- confusion_matrix4$overall['Accuracy']
+
+# Print the accuracy
+print(accuracy)
+print(confusion_matrix4)
+```
+
+```{r}
+# LRM4
+# Extract values from the confusion matrix
+TP11 <- confusion_matrix4$table[2, 2]
+FN10 <- confusion_matrix4$table[1, 2]
+FP01 <- confusion_matrix4$table[2, 1]
+
+
+# Calculate precision
+precision <- TP11 / (TP11 + FP01)
+
+# Calculate recall (sensitivity)
+recall <- TP11 / (TP11 + FN10)
+
+# Calculate F1-score
+f1_score <- 2 * (precision * recall) / (precision + recall)
+
+# Calculate support
+support <- TP11 + FN10
+
+# Print the results
+cat("Precision:", precision, "\n")
+cat("Recall:", recall, "\n")
+cat("F1 Score:", f1_score, "\n")
+cat("Support:", support, "\n")
+```
+```{r}
+# Predict using the model
+predictions <- predict(LRM4, newdata = testData, type = "response")
+
+# Convert predicted probabilities to class labels (0 or 1)
+predicted_classes <- ifelse(predictions > 0.5, 1, 0)
+
+actual_values <- testData$Diagnosis
+
+# Calculate the accuracy
+accuracy <- sum(predicted_classes == actual_values) / length(actual_values)
+
+# Print the accuracy
+print(accuracy)
+```
+
+After changing the threshold into 0.4, shows that it still maintained original accuracy, even more it slightly increase the accuracy by 0.001. The recall is greatly boos from 0.75 to 0.85. This is mean that the model has less FN, which mean there is less people that are not diagnosed postive. In other word there are will be more woman will be able to recieve treatment and reducing the chance of woman who has gastional diabetes undetected. But this model is actaully quite low for medical field. Therefore this model should be only use for early diagnosis only, then the person can be tested using OGTT to detect the Gastional diabetes.
+
+# r) suggestions for further improving the accuracy of your chosen model
+
+The following are some suggestions for enhancing the chosen model's accuracy further:
+
+1. Engineering of Features: Investigate additional methods of feature engineering to construct relevant new features from existing ones. Combining features, generating interaction terms, or extracting relevant data are all examples of this.
+
+2. Selection of Features: Utilize techniques for feature selection to identify the model's most essential features. This can help focus on the most relevant predictors while reducing noise. Recursive Feature Elimination (RFE), Lasso regression, and feature importance from tree-based models are all options.
+
+3. Choosing a Model: Try different things with various sorts of models or troupe strategies to check whether they can all the more likely catch the fundamental examples in the information. Try random forests, gradient boosting machines, or support vector machines as an algorithm.
+
+4. Tuning the Hyperparameters: Optimize the model's performance by fine-tuning its hyperparameters. To find the optimal hyperparameter combination, methods like grid search, random search, or Bayesian optimization can be used.
+
+5. Cross-Validation: To avoid overfitting and obtain a more robust estimate of the model's performance, employ cross-validation methods like k-fold cross-validation. This aids in determining the model's capacity for generalization.
+
+6. Taking care of Class Unevenness: On the off chance that the dataset has class unevenness, where one class is fundamentally more predominant than the other, consider utilizing strategies, for example, oversampling the minority class (e.g., Destroyed) or undersampling the greater part class to adjust the dataset and work on model execution.
+
+7. More Data Collection: To increase the dataset's size, gather additional data whenever possible. The model can learn more effectively and better generalize to unobserved examples with more data.
+
+8. Explore Blunders: Examine the model's mistakes to learn more about the kinds of situations it faces. This can direct further enhancements, like gathering extra highlights or tending to explicit examples in the information.
+
+9. Regularization: To avoid overfitting and boost model performance, use regularization methods like L1 and L2 regularization.
+
+10. Skills in the Field: Include domain expertise in the modeling procedure. Think about consulting domain experts to learn more about the problem's particular characteristics and incorporate their insights into feature engineering or model design.
+
+It is essential to keep in mind that the problem and dataset at hand may have different effects on these suggestions' efficacy. It is prescribed to explore different avenues regarding various methodologies and cautiously assess their effect on the model's presentation.
+
+
+Improving Model by reducing TYPE-II ERROR
+1. The first suggestion of improving acuracy is by using diffrent model that can capture non linear data such as random forest, decision tree, ensamble learning, or Nerual network.
+
+2. Increase the number of observation. the more data we have the better model performance is. Also the more data we have, will have more normally distributed data, and we can have option to remove data instead of replacing it which can make the model bias.
+
+3. Engineering of Features: Investigate additional methods of feature engineering to construct relevant new features from existing ones. Combining features, generating interaction terms, or extracting relevant data are all examples of this.
+
+4. Explore Blunders: Examine the model's mistakes to learn more about the kinds of situations it faces. This can direct further enhancements, like gathering extra highlights or tending to explicit examples in the information.
+
+5. Skills in the Field: Include domain expertise in the modeling procedure. Think about consulting domain experts to learn more about the problem's particular characteristics and incorporate their insights into feature engineering or model design.
+
+# t) PiFalls or weakness / Limitation and risk
+
+1. Low accuracy: When it comes to medical diagnosis, it's crucial to prioritize high accuracy for patient safety. Unfortunately, the current model falls short in terms of accuracy. To be truly effective in the medical field, the model needs significant improvement to ensure more reliable and precise results.
+
+2. F1 score: The F1 score, which combines precision and recall, is an important measure of accuracy. In the case of the current model, it doesn't meet the threshold required for reliable medical diagnosis. We need a higher F1 score to ensure that the model can make accurate predictions, minimizing both false positives and false negatives. This is vital in making sound medical decisions.
+
+3. Inability to replace actual diagnosis: Due to its low accuracy and inadequate F1 score, the model cannot replace actual medical diagnosis. It lacks the necessary precision and reliability to make critical healthcare decisions. To ensure accurate and dependable diagnoses, it's essential to rely on validated diagnostic methods and the expertise of qualified healthcare professionals.
+
+4. Early stage diagnosis: If deployed, the model could potentially assist as an early-stage diagnostic tool. It should never serve as the only diagnostic technique, though. Instead, it might be used as a preliminary screening or triage phase to spot those who would require more testing, such the OGTT (Oral Glucose Tolerance Test). The model's predictions can help prioritize patients for additional evaluation, but it's crucial to follow up with definitive diagnostic tests conducted by medical professionals.
+
+# U) Five Key Point
+
+- The effect of variable toward the diagnosis of the patient
+- Model accuracy and precision (model report
+- Goal try to achieve and consideration fo reducing Type2 error
+- Benefit to use the model (operational and cost)
+- Risk and Limitation of the model
+
+
